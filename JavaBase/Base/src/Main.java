@@ -1,9 +1,10 @@
-import JavaBase.FloatPractice;
+import FlowControl.PrintControl;
+
 
 public class Main {
     public static void main(String[] args) {
         System.out.println("Hello world");
-        FloatPractice practice = new FloatPractice();
-        practice.caculateFloat();
+        PrintControl practice = new PrintControl();
+        practice.rocksiccorpaper();
     }
 }
