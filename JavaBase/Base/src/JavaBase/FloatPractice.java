@@ -26,6 +26,7 @@ public class FloatPractice {
         a=0.5f+3/2;
         System.out.println(a);
 
+
     }
     //ax2+bx+c=0求根公式
     //-b+-sqrt(b*b-4ac)/2a
