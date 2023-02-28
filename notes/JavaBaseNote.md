@@ -87,4 +87,20 @@ jar包里面还有一个MANIFEST.MF文件，它可以存放一些信息，譬如
 
 ## 模块
 
-有点写累了，休息明天写
+Java 9引入了 模块，目的是解决jar包之间在外部无法表示依赖关系，很容易因为jar包漏写导致运行时classnotfound
+
+类型为.jmod 模块名就是文件名，依赖关系由内部的module-info.class 指定
+
+如java.base.jmod 所有模块都直接或间接的依赖该模块，该模块不依赖其他模块
+
+jmod文件可以包含本地代码（JNI与so文件 应该是），这在运行时提取和链接有点棘手，因为要考虑目标平台,所以模块在编译和链接时可以使用，运行时不支持jmod
+
+编译过程为.class->jar->jmod. 但是最终的jmod文件不可以直接运行，必须经过jlink指令生成一个小型JRE才能运行(好处是只包含传统jdk中我们需要的模块，大小减少了很多) 链接过程就不深究了，不是我的关注点。
+
+由于jmod中定义了模块的依赖关系，所以如果A模块没有定义依赖B模块的关系，那么A模块是无法使用B模块的方法的，无论B模块中的类的方法是不是public
+
+在思考这个模块的过程中混入了android的打包过程，java程序最终并不会生成一个class.dex文件，所以那些jar包 .class文件等都还是存在的。
+
+https://www.cnblogs.com/IcanFixIt/p/7095839.html
+
+https://java-feature.teaho.net/modular.html
