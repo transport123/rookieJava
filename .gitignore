@@ -21,6 +21,6 @@
 
 # workspace
 *.iml
-JavaBase/.idea/
-JavaBase/Base/.idea/
-JavaBase/Base/out/
+*.idea/
+**/out/
+*.xml
