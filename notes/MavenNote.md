@@ -59,3 +59,15 @@ mvn指令后接的是phase，它会自动匹配该phase对应的lifecycle，并�
 其实就是一个wrapper，很容易理解。只不过安装起来不像gradlew一样idea集成，需要用命令行安装，每个项目使用自己单独版本的maven版本。
 
 **groupid aitifactid和 包路径没有任何关系，类的包路径如com.soft.xx还是要在src/java文件中自己去定义**
+
+
+
+## SpringBoot:run
+
+https://blog.csdn.net/zzuhkp/article/details/123493071
+
+mvn真正执行的其实是phase中的goal,goal的本质是定义在插件中的一个mojo(maven old java object 类似于plain old java object)，
+
+mvn可以通过 1，指定phase(phase会默认对应一个goal) 2，直接指定插件 (groupid artifactid version) 3，插件的prefix:goal 这三种方式来执行一个goal (运行maven的虚拟机在执行到具体的goal时会fork出一个新的进程也就是虚拟机运行我们的程序 一种不太准确的说法,可以暂时这么理解)
+
+所以mvn springboot:run 中的springboot就是 springboot插件的前缀，run则是它其中的一个mojo 可以执行我们的main函数

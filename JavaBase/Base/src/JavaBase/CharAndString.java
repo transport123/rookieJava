@@ -3,8 +3,7 @@ package JavaBase;
 public class CharAndString {
 
 
-    public void charUse()
-    {
+    public void charUse() {
         //1,一个char占两个字节 保存Unicode字符,所以中英字符都可以存储
         int unicode = 'A';//通过将一个字符赋给int等于将unicode值赋过去
         char unichar = '\u0041';// 通过\\u转译表示一个unicode值 十六进制 4*4 = 16 =两个字节
@@ -18,13 +17,13 @@ public class CharAndString {
         //String对象为immutable 这是一块很大的内容,今晚可以看一下
     }
 
-    public void stitchChars(){
+    public void stitchChars() {
         int a = 72;
         int b = 105;
         int c = 65281;
-        char cc = (char)c;
+        char cc = (char) c;
         // FIXME:
-        String s = ""+(char)a+(char)b+(char)c;
+        String s = "" + (char) a + (char) b + (char) c;
         int x = '!';
         System.out.println(s);
         //很诡异 utf编码下 ！ 打不出来,但是数值确实又是65281,可能String和print函数默认做了一些处理

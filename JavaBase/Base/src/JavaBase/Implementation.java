@@ -1,7 +1,7 @@
 package JavaBase;
 
 
-public class Implementation implements DefaultInterface.inheritInterface,DefaultInterface{
+public class Implementation implements DefaultInterface.inheritInterface, DefaultInterface {
 
 
     @Override

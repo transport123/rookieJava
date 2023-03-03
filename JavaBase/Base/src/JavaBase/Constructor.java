@@ -15,9 +15,8 @@ public class Constructor {
 
     }
 
-    public Constructor()
-    {
-        this (0,"null");
+    public Constructor() {
+        this(0, "null");
 
 
         System.out.println("default constructor top");
@@ -28,14 +27,12 @@ public class Constructor {
     }
 
 
-
     static {
         System.out.println("static2");
 
     }
 
-    public Constructor(int id,String name)
-    {
+    public Constructor(int id, String name) {
 
         System.out.println("argument constructor top");
 
@@ -49,8 +46,8 @@ public class Constructor {
 
     {
 
-        id=100;
-        System.out.printf("id:%d",id);
+        id = 100;
+        System.out.printf("id:%d", id);
         id++;
 
     }
