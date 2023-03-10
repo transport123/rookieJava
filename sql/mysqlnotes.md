@@ -729,3 +729,169 @@ MySQL 支持 4 种事务隔离等级。
 
 **关于事务锁有非常多的问题和探讨，比如不同等级的隔离都存在哪些问题，又是怎么解决的...现阶段不深入了解，放一个链接是解释RR和幻读的解决原理：https://www.cnblogs.com/jian0110/p/15080603.html 主要就是行锁与隔离锁，还有快照读与当前读，现阶段只需要知道这些概念就足够了**
 
+## 临时表
+
+该章整体内容还是较简单的，只需要学会临时表的写法，并且知道临时表只存在于一个连接内，连接关闭后临时表全会被删除，并且不同连接之间的临时表是完全隔离的，这对并发来说是个好处。
+
+且临时表可以申明为 ENGINE=MEMORY 或者InnoDB 分别代表内存存储与磁盘存储，两者之间的优劣也很好解答，一是速率上的差异，一是存储持久性上的差异。
+
+要注意临时表是会占据一部分存储空间的，且由于每个连接都有自己的副本，在高访问的情况下要小心使用该特性，更好的处理方法是将中间结果存储在业务层（服务端/客户端皆可）再由对应的业务端自行处理中间结果得到最终的数据。
+
+本节举例的四表连接还是很有特点的，因为临时表中的数据不全，假如我们只做临时表的连接，是没法保证获取全部数据的，即使我们使用外连接。这个时候就要借助原始数据表去外连接数据不完整的临时表，这样就能把临时表的数据集中到一个结果里。
+
+思考题：
+
+假设有多个门店，每个门店有多台收款机，每台收款机销售多种商品，请问如何查询每个门
+
+店、每台收款机的销售金额占所属门店的销售金额的比率呢？
+
+```sql
+CREATE TEMPORARY TABLE branchsales
+SELECT branchnumber,SUM(salesvalue) as totalvalue
+FROM demo.sales
+GROUP BY branchnumber
+
+CREATE TEMPORARY TABLE machinesales
+SELECT branchnumber,cashiernumber,SUM(salesvalue) as totalvalue
+FROM demo.sales
+GROUP BY branchnumber,cashiernumber
+
+SELECT branchnumber,cashiernumber,(a.totalvalue/b.totalvalue) AS percentage
+FROM machinesales AS a 
+LEFT JOIN branchsales AS b
+ON(a.branchnumber=b.branchnumber)
+
+//此处的筛选条件也可以写成
+FROM machinesales as a, branchsales as b
+WHERE a.branchnumber=b.branchnumber
+//虽然都是对表的连接且最终结果相同，但是两种方式的工作原理不太清楚，有说where连接是直接产生ab表的笛卡尔积，之后再进行条件筛选
+//而join是只产生符合条件的目标结果，这种说法不太确定真实性，且从效率上似乎没有什么区别，因为在做连接时on中的筛选条件和where中
+//的筛选条件做的是同一件事，比较疑惑。
+//https://www.cnblogs.com/Transkai/p/13414146.html
+//最终我还是认同这种说法：在做内连接时 where 和 join on 的筛选结果是相同的，且因为内部mysql的优化效率也几乎没有差距
+//而使用外连接时on和where的数据过滤是完全不同的时机，所以也没有太大的可比性，就不纠结了
+```
+
+真是令人无语！因为一个typo浪费了我至少半小时！
+
+## 视图
+
+视图和临时表其实解决的问题是一致的，就是将复杂的查询语句进行拆分，将其中的子查询结果以不同的方式“临时”存储下来，只不过这两者分别采用了不同的方式。
+
+临时表是真实存在的表，在连接未关闭之前，它和其他正常表没有区别，连接关闭就被删除。
+
+而视图是虚拟表，它并不真的执行查询结果并将结果存储，它存储的是该 执行过程，就像一个函数一样，当我们利用视图查询时就等于先调用了视图中的查询语句，再对此结果做进一步的筛选。
+
+这样做有一些好处：
+
+1，节省空间，一条语句占据的空间当然要比临时表的结果小多了；
+
+2，简化查询，这也是肯定的，毕竟这就是视图存在的目的，拆分大查询为多个子查询，方便调用；（其实有点面向对象中 抽象 的概念）
+
+3，隔离用户与原数据表，使得用户调用视图来完成操作，只要保证了视图的正确性，整个过程就更加的安全。
+
+4，数据结构相对独立，原表结构发生改变，我们也可以通过修改视图结果集让他不影响到用户（其实这点有些牵强，因为即使不用视图，我们更改对应的查询语句也能完成对应的任务，改变是不可避免的，只是发生的位置不同，一个是在视图层更改，相当于对用户屏蔽；一个是用户需要自行进行更改---》如果要举例来说的话，大概就是java业务端我们要修改sql语句，以此来应对表结构的变化，而通过视图我们java端可能完全不需要修改，只修改视图就好。也就是可以理解成把业务层的东西抽到了数据层，但是这样子合理吗，从上往下的抽象是正确的吗？）
+
+不过也需要注意，就像我们可以真实的更改临时表一样（插入数据，更改表结构等），我们也可以“虚拟”的更改视图，只不过因为这是一张虚拟表，所以所有的更改其实是直接作用于真实表来达到的，这也就添加了一个约束：我们的视图必须字段和真实表完全一致，才可以进行插入数据，因为我们的视图常常包含了多表的联合以及一些关键字（distinct）操作，也就是虚拟表的结果和原数据表（可能都是多张）的结构相差甚远，当我们通过结果去反推源头并通过更改源头来改变结果，这个过程往往非常的复杂或者说充满了歧义（因为你不知道怎样才是正确的反推过程），所以即便update delete 操作没有这么多的限制，我们还是尽量少对视图做更改，避免最终对原数据表产生你无法理解的数据错误。
+
+对于view的操作与对真实table的操作几乎没差别，只需要把关键字table换成view即可执行相应的alter,drop,describe等。
+
+其余的增删改查只需要将视图看成一个虚拟表，语句和正常表没有区别(只是我们不推荐你做除了查询以外的操作)
+
+思考题：
+
+视图返回的结果集包括：当前时间可以卖的门票名称和剩余数量（说明：开门前 30 分钟开始售票，结束前 30 分钟停止售票）
+
+```sql
+CREATE VIEW demo.current_ticket AS
+SELECT a.tname,a.balance
+FROM demo.tickets_info a JOIN
+demo.types_info b
+ON(a.typeid=b.typeid)
+WHERE(a.balance>0 AND NOW() BETWEEN (date_add(b.opentime,INTERVAL -30 MINUTE),date_add(b.closetime,INTERVAL -30 MINUTE))
+```
+
+currdate()获取的是当前的日期；now()获取的是当前具体详细时间
+
+通过date_add(date,interval number unit)来进行时间的加减
+
+**IN并不是范围判断，而是指可选值 COLUMN1 IN (VALUE1,VALUE2....) 即column如果是in中集合的值是便符合结果；范围判断要使用BETWEEN**
+
+## 存储过程
+
+存储过程有参数这个概念，不同于普通的sql，我们都需要在业务层将一条语句中的筛选条件确定，然后通过jdbc连接数据库直接执行，该语句是“写死”的；而存储过程由于有参数，我们在业务层可以动态的设置参数，在连接获得call之后，直接调用call.excute就行了，且调用之后我们可以得到out类型参数的新值，就像一个函数的返回值一样
+
+https://www.cnblogs.com/lihaoyang/p/8675351.html 文中有一个java调用存储过程的例子，简单易懂
+
+需要注意调用存储过程的语句本身也是sql：CALL procedure1(param1....)  java层通过一个连接+该sql获取一个call对象，并使用这个call对象来配置参数并进行真实的调用。
+
+JDBC看来还是得系统的学一下，尽管spring架设在其之上，隐藏了这些实现，不懂的话用起来还是有点吃力
+
+参数类型：
+
+in:入参，也就是可读取的参数（不太清楚改变它的值是否合法，但是一定没有好处，所以不要做这种操作）
+
+out :输出的参数，存储过程执行中可以改变它的值，在存储过程执行结束后可以被调用者使用
+
+inout:既可以做入参也可以做出参
+
+存储过程中可以定义变量，使用：DECLARE name type来申明；对变量赋值使用SET关键字;删除存储过程使用 DROP PROCEDURE XXX；修改存储过程有些麻烦，一般需要使用对应的数据库管理软件（workbench等），使用sql语句只能将它删除再重新写
+
+课程中的案例:
+
+```sql
+DELIMITER //
+CREATE PROCEDURE dailystaticsOP(IN transdate TEXT)
+BEGIN
+
+
+DECLARE startdate,enddate DATETIME;
+SET startdate = date_format(transdate,'%Y-%m-%d');
+SET enddate = date_add(startdate,INTERVAL 1 DAY);
+
+
+DELETE FROM demo.dailystatistics
+WHERE salesdate=startdate;
+
+INSERT into dailystatistics -- 将计算结果插入每日统计表
+(
+salesdate,
+itemnumber,
+quantity,
+actualvalue,
+cost,
+profit,
+profitratio
+)
+SELECT b.transdate,a.itemnumber,SUM(a.quantity),SUM(a.salesvalue),SUM(a.quantity*c.cost)，SUM(a.salesvalue-a.quantity*c.cost),CASE SUM(a.salesvalue) WHEN 0 THEN 0 ELSE round(sum(a.salesvaluea.quantity*c.avgimportprice)/sum(a.salesvalue),4) 
+FROM
+demo.transactiondetails a JOIN
+demo.transactionhead b ON(a.transactionid=b.transactionid) JOIN
+demo.goodsmaster c ON(a.itemnumber=c.itemnumber)
+WHERE b.transdate>startdate AND b.transdate<enddate
+GROUP BY(b.transdate,a.itemnumber)
+ORDER BY(b.transdate,a.itemnumber) 
+END
+//
+DELIMITER ;
+
+
+```
+
+非常巧妙的一个点，在select中我们是无法单独拿到cost这一列的，因为我们是根据itemnumber和date分的组。但是在sum中就可以访问到该列，我们通过计算每一行的成本总数，作为一个新的“临时列”，然后使用SUM函数相加就解决了这个问题
+
+在计算毛利时也是用的这个思想，先计算一行的毛利，再全部加起来得到总共的毛利（不过我分成两个sum是不是也可以）
+
+思考题：
+
+```sql
+DELIMITER //
+CREATE PROCEDURE changeb(IN a INT,OUT b INT)
+BEGIN
+SET b=a+1;
+END
+//
+DELIMITER ;
+
+```
+
