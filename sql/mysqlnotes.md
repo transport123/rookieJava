@@ -895,3 +895,125 @@ DELIMITER ;
 
 ```
 
+## 游标
+
+游标就像我们在编程中使用的for each 中的index下标一样，帮助我们定位 查询结果集中的每一条数据，使我们可以分别拿到每一行 再做出对应的操作。
+
+局限性：只能在存储过程和存储函数中使用  （存储函数没做过多的了解）且似乎不能控制游标的初始值，结束条件，它会遍历结果集中的每一条记录，所以如果我们想做一定程度的控制，就要select出正确的结果集，并在执行语句中加入一些逻辑判断控制整个流程（个人理解，或许这些更应该放在业务层，sql只做统一的处理更好）
+
+```sql
+DECLARE cursor_name CURSOR FOR 结果集; //针对某个结果集定义游标
+
+OPEN cursor_name; //打开该游标
+
+FETCH cursor_name INTO 变量列表; //将游标指向的行的数据写入变量列表中，列数与变量数必须完全一致，且类型需要一一对应
+
+CLOSE cursor_name;
+```
+
+在使用游标时我们需要循环，所以引入了条件处理语句和流程控制语句
+
+### 条件处理语句
+
+```sql
+DECLARE CONTINUE | EXIT HANDLER FOR 问题 操作;
+// CONTINUE 表示遇到问题后执行操作后继续执行存储过程  EXIT表示执行操作后退出当前的存储过程
+//常见问题：NOT FOUND 游标走到最后，找不到结果;  SQLEXCEPTION 执行sql时发生错误;
+//文中定义的操作: SET done = TRUE 通过将循环是否退出的标志设为true来退出循环
+```
+
+### 流程控制语句
+
+```sql
+//循环语句:
+标签:LOOP
+操作
+END LOOP 标签; //使用LOOP无法自主跳出循环,必须在内部通过逻辑判断使用LEAVE或ITERATE。
+//LEAVE 可用在循环或者BEGIN END包裹的过程中，根据当前所在的scope, 跳出循环或当前的程序体 有点像break
+//ITERATE只能用在循环中，表示重新开始循环 有点像continue
+
+//先判断再执行
+WHILE 条件 DO
+操作
+END WHILE
+
+//先执行再判断
+REPEAT
+操作
+UNTIL 条件 END REPEAT
+
+//IF判断
+IF 表达式 THEN 操作
+[ELSEIF 表达式2 THEN 操作2]...
+[ELSE 操作N]
+END IF
+
+//CASE判断
+CASE 表达式 WHEN 条件1 THEN 操作1 
+[WHEN 条件n THEN 操作n...]
+[ELSE 操作..]
+END CASE
+
+```
+
+游标配合循环的技巧:
+
+```sql
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET 条件=true;
+FETCH cursor_name INTO ...;
+REPEAT
+操作
+FETCH cursor_name INTO ...;
+UNTIL 条件 END REPEAT;
+
+//虽然上述语句写了两次fetch，但是保证了再NOT FOUND触发后都能及时的判断到条件语句，使得存储过程立即跳出循环继续下面的关闭操作
+```
+
+思考题:
+
+```sql
+DELIMITER //
+CREATE PROCEDURE demo.usecursor
+BEGIN
+DECLARE tid INT;
+DECLARE	tquant INT;
+DECLARE DONE INT DEFAULT FALSE;
+DECLARE index_cursor CURSOR FOR
+SELECT id,Myquant
+FROM demo.test;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET DONE = TRUE;
+OPEN index_cursor;
+FETCH index_cursor INTO tid,tquant;
+REPEAT
+SET tquant=tquant+ IF tid mod 2 =0 THEN 1 ELSE 2;//不太确定这样写行不行 应该是行的
+UPDATE demo.test as a
+SET a.Myquant=tquant
+WHERE a.id = tid;
+FETCH index_cursor INTO tid,tquant;
+UNTIL DONE END UNTIL;
+CLOSE index_cursor;
+
+
+END
+//
+DELIMITER ;
+
+```
+
+
+
+
+
+
+
+
+
+## 窗口函数？高级sql函数？
+
+连续三条符合记录的值，通过rownumber和id的差值是否相同来判断
+
+https://blog.csdn.net/qq_43315928/article/details/100170391
+
+查询缺失的id
+
+https://www.jianshu.com/p/1da3f7d73d72
