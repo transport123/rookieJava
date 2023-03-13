@@ -1000,7 +1000,116 @@ DELIMITER ;
 
 ```
 
+## 触发器
 
+BEFORE与AFTER的区别：使用BEFORE时可以在语句中修改NEW的值（即触发条件所产生的结果)  我猜测为了实现这种操作，数据库会对触发条件语句执行后的结果进行 临时的保存，在触发器语句执行后将最终的结果再更新，所以会比AFTER多一些开销，没有特殊需求还是使用AFTER （至少在结果上这两个关键字是一致的，且它们都符合 触发条件和触发器 同时成功或同时失败的特性）
+
+思考题：
+
+当操作人员更新进货单明细表中相关数据的时候，自动触发对进货单头表中相关数据的更改，确保数据的一致性
+
+```sql
+CREATE TRIGGER modify_importhead BEFORE UPDATE 
+ON demo.importdetails FOR EACH ROW
+BEGIN
+IF (OLD.importvalue<>NEW.importvalue) THEN
+UPDATE demo.importhead as a
+SET a.importvalue=IFNULL(a.importvalue,0)+NEW.importvalue-OLD.importvalue
+WHERE a.listnumber = NEW.listnumber;
+//明细表的value并不是总价值，因为一次进货可能有多种商品，所以需要算差值;且要注意头表中importvalue如果为null的情况
+//专栏中作者创建触发器还是使用了delimiter,但是整个语句只有一个 ; 我觉得似乎没必要这样做 
+//除非触发器语句可以是多条sql语句（应该是可以多条，因为它内部也使用了BEGIN END的标签，像是一个过程)
+```
+
+tips:
+
+触发器和事务面向的场景有些相似，都是为了解决ACID问题
+
+但是由于触发器难以维护，移植，调试 且 对资源的消耗，一般来说不推荐使用触发器。
+
+https://segmentfault.com/q/1010000004907411 
+
+https://segmentfault.com/q/1010000008704337
+
+关于事务，存储过程，触发器优劣的讨论 得出的结论是对于数据的控制等最好还是将权力上移到业务层（触发器和存储过程都少用），而不要依赖数据库来做。主要是从维护，移植这些角度去考虑，效率上并没有很大区别
+
+## 权限管理
+
+角色 (ROLE):每一类角色有着自己对应的权限
+
+横向权限:角色对哪些表有权限;
+
+纵向权限:角色对某一张表有哪些权限(select、update、insert、delete)  不太清楚alter table之类的权限是否可以定义 （查了一下至少drop也是可以授权的，授权后可以删除表）
+
+用户:每个用户是某一种角色，它拥有该角色对应的权限
+
+```sql
+CREATE ROLE 'xxx'@'localhost';//创建xxx的角色，且该角色只能在 该数据库所运行的服务器上登陆;不写@就表示可以在任意一台主机登录
+
+GRANT SELECT,UPDATE ON TABLE_NAME TO 'XXX';//将在某张表上的对应权限赋予给角色XXX
+
+SHOW GRANTS FOR 'XXX'; //查看XXX有哪些权限
+
+DROP ROLE 'XXX'; //删除角色XXX
+
+CREATE USER 'XXX' IDENTIFIED BY 'PASSWORD'; //创建一个由password验证的xxx用户，密码非必选项，但是最好始终都设置一个密码
+
+GRANT 'ROLEXXX' TO 'USERXXX';//将角色xxx赋予给用户xxx
+
+GRANT SELECT,DELETE ON TABLENAME TO 'USERXXX';//也可以直接使用权限赋值的语法
+
+SHOW GRANTS FOR 'USERXXX';//查询用户xxx的权限
+
+REVOKE SELECT ON TABLENAME FROM 'ROLEXXX';//将角色xxx对table的读权限撤回
+
+REVOKE 'ROLEXXX' FROM 'USERXXX';//将用户xxx的 角色xxx权限撤回
+
+//但是只通过创建，授权的话，用户也不会真的有权限，还必须执行下面的语句
+set global active_all_roles_on_login = on;
+//表示在登录时激活所有的角色，从而获得权限
+```
+
+可以的话不要将 权限控制放在业务层，并总是使用ROOT超级用户来访问数据库，一旦root的密码泄露将非常危险
+
+尽量利用数据库自带的权限机制来做 用户权限控制（不过感觉这样子成本也很大，每创建一个表就要grant相应的权限，是一件有点麻烦的事情，且后期在维护权限列表时也很耗时间，有利有弊）
+
+
+
+思考题:
+
+```sql
+CREATE ROLE 'accountant'@'localhost';
+GRANT SELECT ON demo.goodsmaster TO 'accountant';
+GRANT SELECT ON demo.settlement TO 'accountant';
+GRANT SELECT,UPDATE,INSERT,DELETE ON demo.invcount TO 'accountant';
+CREATE USER 'lisi' IDENTIFIED BY 'password';
+GRANT 'accountant' to 'lisi';
+set global active_all_roles_on_login = on;
+```
+
+理解用户与连接：
+
+一个用户可以同时有多个连接（连接指物理上的网络连接）来并发处理客户端的请求（此处的客户端是相对于数据库的，其实是我们的JAVA业务层）
+
+会话：逻辑上的客户端与数据库的一次交互记录，记录了本次交互的上下文相关信息（客户端机器，通过哪个程序，使用哪个用户登录）
+
+会话可以没有连接（准备好时再创建真正的连接），一个连接可以对应多个会话 （会话串行的在一个连接上执行），会话之间互不影响
+
+mysql的线程池与连接数的结构演变：https://segmentfault.com/q/1010000005624529
+
+从一开始的一个连接对应一个线程（线程会伴随着连接的到来不断重新创建，释放，性能损耗与内存抖动会比较严重）到普通线程池（仍然是一对一），如果在连接数较高的情况下，总线程数会过多，频繁的上下文切换以及线程本身所占据的资源也会拖垮服务器；最后采用线程池+一对多的机制（一个线程处理多个连接的请求，以statement为单位，也就是执行语句）
+
+最终的总结：mysql在较新的版本中才引入了线程池的机制，之前默认的连接处理机制就是one thread per connection，这种情况下很容易理解为何不能将max-connection设置过大，因为会导致线程数过多，需要频繁切换上下文，且维护线程与连接本身也需要消耗内存资源，所以当达到一个阈值时mysql服务器的响应能力会跳跃式的下滑；而即便是引入了线程池，也并不代表就解决了这个问题，因为线程池在调度分配连接时也依然要损耗时间，维护连接的资源也不容小觑，且连接过多时，如果没有足够的线程去处理，最终还是会造成串行的阻塞，不过这本质上是硬件处理能力跟不上所导致的，想要解决该问题只能提升硬件水平或者使用分布式？
+
+活跃连接，连接数 通过设置对应线程为sleep状态来控制当前的活跃连接数，也是一种调整mysql运行效率的策略
+
+这些数值的调整需要根据具体的硬件水平与并发量进行调整，找到一个合适的值，太低（可能造成cpu空闲时间太久浪费了硬件）或太高都不好，一般是通过压测等手段不断的去进行优化。
+
+https://spike.dev/2020/07/26/db-max_connections-%E7%9C%9F%E7%9A%84%E8%B6%8A%E5%A4%A7%E8%B6%8A%E5%A5%BD%E5%90%97/
+
+
+
+## 数据库日志
 
 
 
