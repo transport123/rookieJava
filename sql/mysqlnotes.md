@@ -1324,6 +1324,8 @@ https://blog.csdn.net/qq_43315928/article/details/100170391
 
 https://www.jianshu.com/p/1da3f7d73d72
 
-exists？
+union 
 
-not in
+ in 
+
+exist
