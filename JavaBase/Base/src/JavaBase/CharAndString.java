@@ -31,4 +31,34 @@ public class CharAndString {
         //核心思路是得把编码值放进char类型的变量中
         //Character.forDigit也是使用强转来实现的,不过它是 '0'+ a 因为这个函数的本意是将9这个数字转换为 '9' 所以通过'0'的编码数加上a来获取a的编码数
     }
+
+    public void testArr()
+    {
+        int arrA[]={1,2,3,4,5};
+        int arrB[]=arrA;
+        arrB[0]=10;
+        for (int i : arrA)
+        {
+            System.out.println(i);
+        }
+    }
+
+    public void testIntern()
+    {
+        String s1="abc";
+        String s2="cbd";
+        String s4="abccbd";
+        String s3 = s1+s2;
+
+        final int g;
+        if(s3==s4)
+            System.out.println("equal");
+        final int[]a;
+        int []b={1,2,3,4,5};
+        a=b;
+    }
+    final int a;
+    CharAndString(){
+        a=10;
+    }
 }
