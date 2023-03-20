@@ -1597,9 +1597,11 @@ start slave;//开启同步
 show binlog events in mysql-bin.000001;//显示该二进制日志的具体信息，用于确定position，以便知道从哪里开始同步
 ```
 
+ps:二进制日志也不是默认开启的，需要设置my.ini中的log-bin=mysql-bin来开启
 
 
-定期mysqldump备份
+
+定期mysqldump备份(可能要写一个bat批处理，定时运行比如每晚12点，一周一个循环，一天一个文件夹，隔周就替换)
 
 ## 窗口函数？高级sql函数？
 
