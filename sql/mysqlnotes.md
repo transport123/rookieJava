@@ -1570,6 +1570,50 @@ https://www.finclip.com/news/f/7102.html
 
 2，3其实是根据id或其他特征将整个数据库中的数据进行了一种“分组”，你可以根据不同的粒度，来决定是将单表中的数据分组到多个表中或是直接分到新的数据库中，甚至可以在一台新的服务器上搭建一个新的dbms。不过这其中的维护与操作成本都会增加，比如你将某个表分组成了多个表，那么在业务层就多了一个确定要操作的表名的步骤，物理分库也是同理，因为要连接到不同的服务器则会更加复杂。垂直分表同样也会增加维护成本，因为数据是“关联”的，当你改变一张表的时候要同时更改其他表的数据，难免要使用存储过程+事务或者创建外键或者在jdbc使用事务来完成。所以对于规模不大的项目，在设计时分库分表反而是不合理的；此时ER+三范式+适当的索引+适当的冗余+适当的根据字段频率拆表就能基本满足我们的需求。
 
+拆表之后的存储过程，可以看到逻辑还是比较复杂的，如果要从数据库层面维护会比较困难
+
+```sql
+DELIMITER //
+CREATE DEFINER='root'@'localhost'  PROCEDURE `invcountconfirm` (mylistnumber INT,myconfirmer INT)  -- DEFINER代表创建该存储过程的user，不太清除这个限制对于调用是否起作用
+BEGIN
+DECLARE done INT DEFAULT FALSE;
+DECLARE mybranchid INT;
+DECLARE myitemnumber INT;
+DECLARE plquantity DECIMAL(10,3);
+DECLARE CURSOR cur_detail FOR
+SELECT branchid,itemnumber,plquant
+FROM inventory.invcountdetails WHERE mylistnumber=listnumber;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=true;
+DECLARE EXIT HANDLER FOR SQLEXCEPTION ROLLBACK;
+
+START TRANSACTION;
+
+OPEN cur_detail;
+FETCH cur_detail INTO mybranchid,myitemnumber,plquantity;
+
+REPEAT
+
+UPDATE inventory.inventory
+SET quantity=itemquantity+plquantity
+WHERE mybranchid=branchid AND myitemnumber=itemnumber;
+
+FETCH cur_detail INTO mybranchid,myitemnumber,plquantity;
+UNTIL done END REPEAT;
+
+INSERT INTO inventory.invhistorydetail
+
+
+
+COMMIT;
+END
+
+//
+DELIMITER;
+
+```
+
+
+
 主从数据库容灾：
 
 1，主从服务器需要在同一网段确保从服务器可以访问，且主服务器的3306端口需要保持打开。
@@ -1613,10 +1657,5 @@ https://blog.csdn.net/qq_43315928/article/details/100170391
 
 https://www.jianshu.com/p/1da3f7d73d72
 
-union 
-
- in 
-
-exist
-
 聚合索引，非聚合索引 索引的原理
+
